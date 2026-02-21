@@ -3,42 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>點貨小助手 (快速輸入版)</title>
+    <title>點貨小助手 (分類加強版)</title>
     <style>
         :root { --primary: #3498db; --bg: #f4f7f6; --note-yellow: #fff9c4; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
         
-        .search-box { background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 10; }
-        input#searchBar { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        /* 搜尋與分類按鈕區 */
+        .header-section { background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 10; }
+        input#searchBar { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; margin-bottom: 10px; }
+        
+        .category-filter { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; white-space: nowrap; }
+        .cat-btn { padding: 6px 15px; background: #eee; border-radius: 20px; border: none; font-size: 14px; cursor: pointer; }
+        .cat-btn.active { background: var(--primary); color: white; font-weight: bold; }
 
+        /* 產品卡片與其他樣式 (同前) */
         .product-card { background: white; border-radius: 10px; padding: 15px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .product-title { font-weight: bold; font-size: 1.1em; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; color: #2c3e50; }
+        .product-title { font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; color: #2c3e50; }
         .variant-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #fcfcfc; }
-        
-        /* 修改數量控制區 */
         .controls { display: flex; align-items: center; gap: 5px; }
-        .btn-op { width: 44px; height: 44px; border-radius: 8px; border: none; font-size: 22px; color: white; cursor: pointer; touch-action: manipulation; }
-        .btn-minus { background: #e74c3c; }
-        .btn-plus { background: #2ecc71; }
-        
-        /* 中間的輸入框樣式 */
-        .qty-input { width: 55px; height: 40px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #ccc; border-radius: 6px; background: #fff; }
-        /* 移除手機瀏覽器預設的上下箭頭 */
-        .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .btn-op { width: 44px; height: 44px; border-radius: 8px; border: none; font-size: 22px; color: white; cursor: pointer; }
+        .btn-minus { background: #e74c3c; } .btn-plus { background: #2ecc71; }
+        .qty-input { width: 55px; height: 40px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #ccc; border-radius: 6px; }
 
-        .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: #f1c40f; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 99; border: none; }
+        .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: #f1c40f; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 99; border: none; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
-        .modal-content { position: absolute; bottom: 0; left: 0; right: 0; background: var(--note-yellow); border-radius: 20px 20px 0 0; padding: 20px; max-height: 70vh; display: flex; flex-direction: column; }
+        .modal-content { position: absolute; bottom: 0; left: 0; right: 0; background: var(--note-yellow); border-radius: 20px 20px 0 0; padding: 20px; max-height: 80vh; display: flex; flex-direction: column; }
         .note-list { flex: 1; overflow-y: auto; background: rgba(255,255,255,0.4); border-radius: 8px; padding: 10px; font-size: 14px; margin-bottom: 10px; border: 1px solid #e6db55; }
-        .note-item { border-bottom: 1px dashed #e6db55; padding: 6px 0; }
+        .note-item { border-bottom: 1px dashed #e6db55; padding: 8px 0; color: #5d4037; }
         .manual-input { display: flex; gap: 8px; }
-        .manual-input input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .manual-input input { flex: 1; padding: 12px; border: 1px solid #d4c84d; border-radius: 8px; font-size: 16px; }
+        .btn-send { background: #34495e; color: white; border: none; padding: 0 20px; border-radius: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="search-box">
+    <div class="header-section">
         <input type="text" id="searchBar" placeholder="🔍 搜尋產品名稱..." oninput="render()">
+        <div class="category-filter" id="catFilter">
+            <button class="cat-btn active" onclick="filterCat('全部')">全部</button>
+            </div>
     </div>
 
     <div id="status" style="text-align:center; color: #888; padding: 20px;">資料載入中...</div>
@@ -49,21 +52,23 @@
     <div class="modal-overlay" id="modalOverlay" onclick="toggleModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <span style="font-weight:bold;">📝 點貨歷史筆記</span>
-                <button onclick="toggleModal()" style="border:none; background:#95a5a6; color:white; padding:5px 15px; border-radius:5px;">關閉</button>
+                <span style="font-weight:bold;">📋 點貨與備註</span>
+                <button onclick="toggleModal()" style="border:none; background:#95a5a6; color:white; padding:6px 16px; border-radius:8px;">收起</button>
             </div>
             <div class="note-list" id="noteList"></div>
             <div class="manual-input">
-                <input type="text" id="customNote" placeholder="手動備註...">
-                <button onclick="addCustomNote()" style="background:#34495e; color:white; border:none; padding:0 15px; border-radius:5px;">送出</button>
+                <input type="text" id="customNote" placeholder="輸入文字備註 (如：需叫貨)...">
+                <button class="btn-send" onclick="addCustomNote()">送出</button>
             </div>
-            <button onclick="clearAll()" style="margin-top:10px; color:#e74c3c; background:none; border:none; text-decoration:underline; font-size:12px;">清空當次數據</button>
+            <button onclick="clearAll()" style="margin-top:10px; color:#e74c3c; background:none; border:none; text-decoration:underline; font-size:12px; align-self: flex-start;">清空本次數據</button>
         </div>
     </div>
 
 <script>
     const SPREADSHEET_ID = '1MyO8gr_3SUE2jhYfSYfWc-9J9oJlwBJu9PoTYr5Ea4E';
     let inventoryData = [];
+    let categories = ['全部'];
+    let currentCat = '全部';
     let sessionCounts = JSON.parse(localStorage.getItem('sessionCounts')) || {};
     let notes = JSON.parse(localStorage.getItem('tempNotes')) || [];
 
@@ -74,41 +79,50 @@
             const data = await response.text();
             const rows = data.split('\n').map(row => row.split(','));
             const tempMap = {};
+            const catSet = new Set(['全部']);
 
             for (let i = 1; i < rows.length; i++) {
-                let pName = rows[i][0] ? rows[i][0].replace(/"/g, '').trim() : '';
-                let variant = rows[i][1] ? rows[i][1].replace(/"/g, '').trim() : '預設';
+                let cat = rows[i][0] ? rows[i][0].replace(/"/g, '').trim() : '未分類';
+                let pName = rows[i][1] ? rows[i][1].replace(/"/g, '').trim() : '';
+                let variant = rows[i][2] ? rows[i][2].replace(/"/g, '').trim() : '預設';
+                
                 if (pName) {
-                    if (!tempMap[pName]) tempMap[pName] = [];
-                    tempMap[pName].push(variant);
+                    catSet.add(cat);
+                    const key = `${cat}_${pName}`;
+                    if (!tempMap[key]) tempMap[key] = { cat, name: pName, variants: [] };
+                    tempMap[key].variants.push(variant);
                 }
             }
-            inventoryData = Object.keys(tempMap).map(name => ({ name, variants: tempMap[name] }));
+            inventoryData = Object.values(tempMap);
+            categories = Array.from(catSet);
+            renderCategories();
             document.getElementById('status').style.display = 'none';
             render();
             renderNotes();
-        } catch (e) { document.getElementById('status').innerText = '讀取失敗，請確認表格發佈設定'; }
+        } catch (e) { document.getElementById('status').innerText = '載入失敗'; }
     }
 
-    // 更新數量的核心邏輯
+    function renderCategories() {
+        const catBox = document.getElementById('catFilter');
+        catBox.innerHTML = categories.map(c => 
+            `<button class="cat-btn ${currentCat === c ? 'active' : ''}" onclick="filterCat('${c}')">${c}</button>`
+        ).join('');
+    }
+
+    function filterCat(c) {
+        currentCat = c;
+        renderCategories();
+        render();
+    }
+
+    // 更新數量與儲存邏輯 (同前)
     function updateQty(name, color, newValue, isDelta = false) {
         const key = `${name}(${color})`;
-        const oldVal = sessionCounts[key] || 0;
-        
-        if (isDelta) {
-            sessionCounts[key] = oldVal + newValue;
-        } else {
-            sessionCounts[key] = parseInt(newValue) || 0;
-        }
-
-        const currentVal = sessionCounts[key];
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        notes.unshift(`${time} | ${key} 變更為 ${currentVal}`);
-        
+        if (isDelta) { sessionCounts[key] = (sessionCounts[key] || 0) + newValue; }
+        else { sessionCounts[key] = parseInt(newValue) || 0; }
         saveData();
         renderNotes();
-        // 為了不讓輸入框在打字時失去焦點，我們只局部更新
-        document.getElementById(`input-${key}`).value = currentVal;
+        document.getElementById(`input-${key}`).value = sessionCounts[key];
     }
 
     function saveData() {
@@ -116,22 +130,38 @@
         localStorage.setItem('tempNotes', JSON.stringify(notes));
     }
 
+    function addCustomNote() {
+        const input = document.getElementById('customNote');
+        if (!input.value.trim()) return;
+        notes.unshift(`${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} | ${input.value}`);
+        input.value = ''; saveData(); renderNotes();
+    }
+
+    function renderNotes() {
+        document.getElementById('noteList').innerHTML = notes.map(n => `<div class="note-item">${n}</div>`).join('');
+    }
+
+    function toggleModal() {
+        const m = document.getElementById('modalOverlay');
+        m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+    }
+
     function clearAll() {
-        if(confirm('確定要清空本次點貨數據嗎？')) {
-            sessionCounts = {};
-            notes = [];
-            saveData();
-            render();
-            renderNotes();
-        }
+        if(confirm('確定清空？')) { sessionCounts = {}; notes = []; saveData(); render(); renderNotes(); }
     }
 
     function render() {
         const list = document.getElementById('productList');
         const search = document.getElementById('searchBar').value.toLowerCase();
         list.innerHTML = '';
+        
+        const filtered = inventoryData.filter(p => {
+            const matchCat = currentCat === '全部' || p.cat === currentCat;
+            const matchSearch = p.name.toLowerCase().includes(search);
+            return matchCat && matchSearch;
+        });
 
-        inventoryData.filter(p => p.name.toLowerCase().includes(search)).forEach(product => {
+        filtered.forEach(product => {
             const card = document.createElement('div');
             card.className = 'product-card';
             let vsHtml = product.variants.map(v => {
@@ -142,31 +172,14 @@
                     <span>${v}</span>
                     <div class="controls">
                         <button class="btn-op btn-minus" onclick="updateQty('${product.name}', '${v}', -1, true)">−</button>
-                        <input type="number" id="input-${key}" class="qty-input" value="${count}" 
-                               onchange="updateQty('${product.name}', '${v}', this.value)">
+                        <input type="number" id="input-${key}" class="qty-input" value="${count}" onchange="updateQty('${product.name}', '${v}', this.value)">
                         <button class="btn-op btn-plus" onclick="updateQty('${product.name}', '${v}', 1, true)">＋</button>
                     </div>
                 </div>`;
             }).join('');
-            card.innerHTML = `<div class="product-title">${product.name}</div>${vsHtml}`;
+            card.innerHTML = `<div style="font-size:12px; color:var(--primary)">${product.cat}</div><div class="product-title">${product.name}</div>${vsHtml}`;
             list.appendChild(card);
         });
-    }
-
-    function toggleModal() {
-        const m = document.getElementById('modalOverlay');
-        m.style.display = (m.style.display === 'block') ? 'none' : 'block';
-    }
-    function addCustomNote() {
-        const input = document.getElementById('customNote');
-        if (!input.value.trim()) return;
-        notes.unshift(`${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} | ${input.value}`);
-        input.value = '';
-        saveData();
-        renderNotes();
-    }
-    function renderNotes() {
-        document.getElementById('noteList').innerHTML = notes.map(n => `<div class="note-item">${n}</div>`).join('');
     }
 
     fetchData();
