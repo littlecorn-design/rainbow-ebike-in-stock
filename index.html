@@ -3,19 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>點貨小助手 (流暢點擊版)</title>
+    <title>點貨小助手 (穩定修正版)</title>
     <style>
         :root { --primary: #3498db; --bg: #f4f7f6; --note-yellow: #fff9c4; --alert-yellow: #ffeb3b; }
-        
-        /* 全域禁止雙擊縮放與長按彈出選單 */
-        * { 
-            touch-action: manipulation; 
-            -webkit-tap-highlight-color: transparent;
-        }
-
+        * { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; -webkit-user-select: none; }
-        
-        /* 讓輸入框可以被選取，其他地方禁止 */
         input { -webkit-user-select: text; }
 
         .header-section { background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 10; }
@@ -29,27 +21,21 @@
         .product-title { font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; color: #2c3e50; }
         .variant-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #fcfcfc; }
         
-        /* 數量控制區：按鈕加大且不縮放 */
         .controls { display: flex; align-items: center; gap: 8px; }
-        .btn-op { 
-            width: 48px; height: 48px; border-radius: 10px; border: none; 
-            font-size: 24px; color: white; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-        }
+        .btn-op { width: 48px; height: 48px; border-radius: 10px; border: none; font-size: 24px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .btn-minus { background: #e74c3c; }
         .btn-plus { background: #2ecc71; }
         
-        .qty-input { width: 60px; height: 44px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #ccc; border-radius: 6px; }
+        .qty-input { width: 60px; height: 44px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #ccc; border-radius: 6px; background: white; }
         .qty-changed { background-color: var(--alert-yellow) !important; border: 2px solid #fbc02d; }
         .original-hint { font-size: 11px; color: #999; display: block; margin-top: 2px; }
 
-        /* 彈窗與筆記 (同前) */
         .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: #f1c40f; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 99; border: none; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
         .modal-content { position: absolute; bottom: 0; left: 0; right: 0; background: var(--note-yellow); border-radius: 20px 20px 0 0; padding: 20px; max-height: 80vh; display: flex; flex-direction: column; }
         .note-list { flex: 1; overflow-y: auto; background: rgba(255,255,255,0.4); border-radius: 8px; padding: 10px; font-size: 14px; margin-bottom: 10px; border: 1px solid #e6db55; }
         .note-item { border-bottom: 1px dashed #e6db55; padding: 10px 0; color: #5d4037; }
-        .manual-input { display: flex; gap: 10px; padding: 5px 0; }
+        .manual-input { display: flex; gap: 10px; }
         .manual-input input { flex: 1; padding: 12px; border: 1px solid #d4c84d; border-radius: 8px; font-size: 16px; }
     </style>
 </head>
@@ -57,9 +43,7 @@
 
     <div class="header-section">
         <input type="text" id="searchBar" placeholder="🔍 搜尋產品名稱..." oninput="render()">
-        <div class="category-filter" id="catFilter">
-            <button class="cat-btn active" onclick="filterCat('全部')">全部</button>
-        </div>
+        <div class="category-filter" id="catFilter"></div>
     </div>
 
     <div id="status" style="text-align:center; color: #888; padding: 20px;">資料載入中...</div>
@@ -78,7 +62,7 @@
                 <input type="text" id="customNote" placeholder="手動備註 (如：需叫貨)...">
                 <button onclick="addCustomNote()" style="background:#34495e; color:white; border:none; padding:0 20px; border-radius:10px; font-weight:bold;">送出</button>
             </div>
-            <button onclick="clearAll()" style="margin-top:12px; color:#e74c3c; background:none; border:none; text-decoration:underline; font-size:12px; align-self: flex-start;">清空本次所有數據</button>
+            <button onclick="clearAll()" style="margin-top:12px; color:#e74c3c; background:none; border:none; text-decoration:underline; font-size:12px; align-self: flex-start;">清除本次異動 (回復原始數據)</button>
         </div>
     </div>
 
@@ -103,7 +87,9 @@
                 let cat = rows[i][0] ? rows[i][0].replace(/"/g, '').trim() : '未分類';
                 let pName = rows[i][1] ? rows[i][1].replace(/"/g, '').trim() : '';
                 let variant = rows[i][2] ? rows[i][2].replace(/"/g, '').trim() : '預設';
+                // 強制轉換為數字，避免與 0 比對失敗
                 let stock = rows[i][3] ? parseInt(rows[i][3].replace(/"/g, '').trim()) : 0;
+                if (isNaN(stock)) stock = 0;
                 
                 if (pName) {
                     catSet.add(cat);
@@ -114,28 +100,46 @@
                     tempMap[groupKey].variants.push(variant);
                 }
             }
-            inventoryData = Object.values(tempMap).sort((a,b) => a.cat.localeCompare(b.cat, 'zh-Hant') || a.name.localeCompare(b.name, 'zh-Hant'));
-            renderCategories(Array.from(catSet).sort());
+
+            // 修正排序：依照類別 -> 品名
+            inventoryData = Object.values(tempMap).sort((a,b) => {
+                if (a.cat !== b.cat) return a.cat.localeCompare(b.cat, 'zh-Hant');
+                return a.name.localeCompare(b.name, 'zh-Hant');
+            });
+
+            const sortedCats = Array.from(catSet).sort((a,b) => {
+                if (a === '全部') return -1;
+                if (b === '全部') return 1;
+                return a.localeCompare(b, 'zh-Hant');
+            });
+
+            renderCategories(sortedCats);
             document.getElementById('status').style.display = 'none';
             render();
             renderNotes();
-        } catch (e) { document.getElementById('status').innerText = '載入失敗'; }
+        } catch (e) { document.getElementById('status').innerText = '載入失敗，請確認發佈設定'; }
     }
 
     function updateQty(name, variant, newValue, isDelta = false) {
         const key = `${name}(${variant})`;
         const current = (sessionStock[key] !== undefined) ? sessionStock[key] : originalStock[key];
-        let updated = isDelta ? current + newValue : parseInt(newValue) || 0;
+        let updated = isDelta ? current + newValue : parseInt(newValue);
+        
+        if (isNaN(updated)) updated = 0;
         sessionStock[key] = updated;
+
         if (updated !== originalStock[key]) {
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            notes.unshift(`${time} | ${key} 從 ${originalStock[key]} 變更為 ${updated}`);
+            // 只在有變動時記筆記
+            notes.unshift(`${time} | ${key} 變更: ${originalStock[key]} -> ${updated}`);
         }
+
         saveData();
         renderNotes();
         const inputEl = document.getElementById(`input-${key}`);
         if(inputEl) {
             inputEl.value = updated;
+            // 只有不等於原始庫存時才變黃
             if (updated !== originalStock[key]) inputEl.classList.add('qty-changed');
             else inputEl.classList.remove('qty-changed');
         }
@@ -182,7 +186,7 @@
         notes.unshift(`${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} | ${input.value}`);
         input.value = ''; saveData(); renderNotes();
     }
-    function clearAll() { if(confirm('確定清除本次異動？')) { sessionStock = {}; notes = []; saveData(); render(); renderNotes(); } }
+    function clearAll() { if(confirm('確定清除？資料將回復至表格狀態。')) { sessionStock = {}; notes = []; saveData(); render(); renderNotes(); } }
 
     fetchData();
 </script>
