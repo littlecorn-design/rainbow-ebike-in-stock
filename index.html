@@ -12,20 +12,19 @@
 
         .header-section { background: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 10; }
         input#searchBar { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 10px; outline: none; }
-        input#searchBar:focus { border-color: var(--primary); }
         
-        .category-filter { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; white-space: nowrap; -webkit-overflow-scrolling: touch; }
-        .cat-btn { padding: 8px 16px; background: #eee; border-radius: 20px; border: none; font-size: 14px; cursor: pointer; }
+        .category-filter { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; white-space: nowrap; }
+        .cat-btn { padding: 8px 16px; background: #eee; border-radius: 20px; border: none; font-size: 14px; }
         .cat-btn.active { background: var(--primary); color: white; font-weight: bold; }
 
-        #syncStatus { font-size: 11px; color: #888; text-align: right; margin-top: 5px; transition: 0.3s; }
+        #syncStatus { font-size: 11px; color: #888; text-align: right; margin-top: 5px; }
 
         .product-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .product-title { font-weight: bold; font-size: 1.1em; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; color: #2c3e50; }
         .variant-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
         
         .controls { display: flex; align-items: center; gap: 8px; }
-        .btn-op { width: 48px; height: 48px; border-radius: 12px; border: none; font-size: 24px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .btn-op { width: 48px; height: 48px; border-radius: 12px; border: none; font-size: 24px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .btn-minus { background: var(--danger); }
         .btn-plus { background: var(--success); }
         
@@ -35,7 +34,7 @@
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
         .modal-content { position: absolute; bottom: 0; left: 0; right: 0; background: var(--note-yellow); border-radius: 24px 24px 0 0; padding: 20px; max-height: 80vh; display: flex; flex-direction: column; }
         .note-list { flex: 1; overflow-y: auto; background: rgba(255,255,255,0.4); border-radius: 12px; padding: 10px; margin-bottom: 10px; min-height: 200px; border: 1px solid #e6db55; }
-        .note-item { border-bottom: 1px dashed #e6db55; padding: 10px 0; color: #5d4037; font-size: 15px; }
+        .note-item { border-bottom: 1px dashed #e6db55; padding: 10px 0; color: #5d4037; }
     </style>
 </head>
 <body>
@@ -43,7 +42,7 @@
     <div class="header-section">
         <input type="text" id="searchBar" placeholder="🔍 搜尋品項..." oninput="render()">
         <div class="category-filter" id="catFilter"></div>
-        <div id="syncStatus">● 正在連線中...</div>
+        <div id="syncStatus">● 準備連線中...</div>
     </div>
 
     <div id="status" style="text-align:center; color: #888; padding: 50px 0;">讀取 Google 表格中...</div>
@@ -59,14 +58,14 @@
             </div>
             <div class="note-list" id="noteList"></div>
             <div style="display:flex; gap:10px;">
-                <input type="text" id="customNote" style="flex:1; padding:15px; border-radius:10px; border:1px solid #d4c84d; font-size:16px;" placeholder="輸入需要紀錄的事項...">
+                <input type="text" id="customNote" style="flex:1; padding:15px; border-radius:10px; border:1px solid #d4c84d; font-size:16px;" placeholder="輸入記事...">
                 <button onclick="addNote()" style="background:#34495e; color:white; border:none; padding:0 20px; border-radius:10px; font-weight:bold;">送出</button>
             </div>
         </div>
     </div>
 
 <script>
-    // 你的 Google Apps Script 網址
+    // 已替換為你的 GAS 網址
     const API_URL = 'https://script.google.com/macros/s/AKfycbwLS99NQQvMAzktwolE1Ks376xxpG_FlnbZXzlRt8NpGjSk9Cjn9TQ2OKy3qD3nBhg/exec'; 
 
     let inventory = [];
@@ -75,12 +74,12 @@
     let notes = JSON.parse(localStorage.getItem('rainbowNotes')) || [];
 
     async function loadData() {
+        document.getElementById('syncStatus').innerText = '● 正在連線雲端...';
         try {
             const res = await fetch(API_URL);
             const data = await res.json();
             const catOrder = ['全部'];
             
-            // 依照表格原始順序讀取
             inventory = data.slice(1).map(row => {
                 const cat = row[0] || '未分類';
                 if (!catOrder.includes(cat)) catOrder.push(cat);
@@ -94,7 +93,8 @@
             render();
             renderNotes();
         } catch (e) {
-            document.getElementById('status').innerText = '讀取失敗，請確認 GAS 部署權限是否設為 Anyone';
+            document.getElementById('status').innerHTML = '讀取失敗<br><small>請確認 GAS 部署是否設為「Anyone」並完成「進階授權」</small>';
+            console.error(e);
         }
     }
 
@@ -103,22 +103,25 @@
         if (!item) return;
 
         item.qty += delta;
-        render(); // 先更新手機畫面
+        render(); 
 
         const statusLabel = document.getElementById('syncStatus');
-        statusLabel.innerText = '○ 正在同步至 Google 表格...';
+        statusLabel.innerText = '○ 同步中...';
         statusLabel.style.color = '#f1c40f';
 
         try {
-            // 發送到 GAS
             await fetch(API_URL, {
                 method: 'POST',
+                mode: 'no-cors', 
+                cache: 'no-cache',
                 body: JSON.stringify({ name, variant, newQty: item.qty })
             });
-            statusLabel.innerText = '● 雲端同步成功';
-            statusLabel.style.color = '#2ecc71';
+            setTimeout(() => {
+                statusLabel.innerText = '● 同步完成';
+                statusLabel.style.color = '#2ecc71';
+            }, 800);
         } catch (e) {
-            statusLabel.innerText = '❌ 同步失敗 (網路不穩)';
+            statusLabel.innerText = '❌ 同步出錯';
             statusLabel.style.color = '#e74c3c';
         }
     }
@@ -128,13 +131,7 @@
         const search = document.getElementById('searchBar').value.toLowerCase();
         list.innerHTML = '';
 
-        const filtered = inventory.filter(i => {
-            const matchCat = (currentCat === '全部' || i.cat === currentCat);
-            const matchSearch = i.name.toLowerCase().includes(search);
-            return matchCat && matchSearch;
-        });
-
-        filtered.forEach(i => {
+        inventory.filter(i => (currentCat === '全部' || i.cat === currentCat) && i.name.toLowerCase().includes(search)).forEach(i => {
             const card = document.createElement('div');
             card.className = 'product-card';
             card.innerHTML = `
@@ -144,7 +141,7 @@
                     <span>${i.variant}</span>
                     <div class="controls">
                         <button class="btn-op btn-minus" onclick="updateQty('${i.name.replace(/'/g, "\\'")}','${i.variant.replace(/'/g, "\\'")}', -1)">−</button>
-                        <input type="number" class="qty-input" value="${i.qty}" readonly>
+                        <input type="number" class="qty-input" value="${i.qty}">
                         <button class="btn-op btn-plus" onclick="updateQty('${i.name.replace(/'/g, "\\'")}','${i.variant.replace(/'/g, "\\'")}', 1)">＋</button>
                     </div>
                 </div>
@@ -154,16 +151,9 @@
     }
 
     function renderCats() {
-        const catBox = document.getElementById('catFilter');
-        catBox.innerHTML = categories.map(c => 
-            `<button class="cat-btn ${currentCat===c?'active':''}" onclick="setCat('${c}')">${c}</button>`
+        document.getElementById('catFilter').innerHTML = categories.map(c => 
+            `<button class="cat-btn ${currentCat===c?'active':''}" onclick="currentCat='${c}';renderCats();render();">${c}</button>`
         ).join('');
-    }
-
-    function setCat(c) {
-        currentCat = c;
-        renderCats();
-        render();
     }
 
     function addNote() {
