@@ -17,7 +17,9 @@
         .cat-btn { padding: 8px 16px; background: #eee; border-radius: 20px; border: none; font-size: 14px; }
         .cat-btn.active { background: var(--primary); color: white; font-weight: bold; }
 
-        #syncStatus { font-size: 11px; color: #888; text-align: right; margin-top: 5px; }
+        .sync-area { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; }
+        #syncStatus { font-size: 11px; color: #888; }
+        .manual-sync-btn { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; color: #666; }
 
         .product-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .product-title { font-weight: bold; font-size: 1.1em; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; color: #2c3e50; }
@@ -42,10 +44,13 @@
     <div class="header-section">
         <input type="text" id="searchBar" placeholder="🔍 搜尋品項..." oninput="render()">
         <div class="category-filter" id="catFilter"></div>
-        <div id="syncStatus">● 準備連線中...</div>
+        <div class="sync-area">
+            <span id="syncStatus">● 準備就緒</span>
+            <button class="manual-sync-btn" onclick="forceSync()">🔄 手動同步</button>
+        </div>
     </div>
 
-    <div id="status" style="text-align:center; color: #888; padding: 50px 0;">讀取 Google 表格中...</div>
+    <div id="status" style="text-align:center; color: #888; padding: 50px 0;">讀取雲端庫存中...</div>
     <div id="productList" style="padding-bottom: 100px;"></div>
 
     <button class="fab" onclick="toggleModal()">📝</button>
@@ -65,13 +70,14 @@
     </div>
 
 <script>
-    // 已替換為你的 GAS 網址
     const API_URL = 'https://script.google.com/macros/s/AKfycbwLS99NQQvMAzktwolE1Ks376xxpG_FlnbZXzlRt8NpGjSk9Cjn9TQ2OKy3qD3nBhg/exec'; 
 
     let inventory = [];
     let categories = ['全部'];
     let currentCat = '全部';
     let notes = JSON.parse(localStorage.getItem('rainbowNotes')) || [];
+    let syncTimer = null; // 用於存放定時器
+    let pendingUpdates = new Set(); // 紀錄哪些品項被改動過
 
     async function loadData() {
         document.getElementById('syncStatus').innerText = '● 正在連線雲端...';
@@ -93,33 +99,57 @@
             render();
             renderNotes();
         } catch (e) {
-            document.getElementById('status').innerHTML = '讀取失敗<br><small>請確認 GAS 部署是否設為「Anyone」並完成「進階授權」</small>';
-            console.error(e);
+            document.getElementById('status').innerHTML = '讀取失敗<br><small>請確認網路連線</small>';
         }
     }
 
-    async function updateQty(name, variant, delta) {
+    function updateQty(name, variant, delta) {
         const item = inventory.find(i => i.name === name && i.variant === variant);
         if (!item) return;
 
         item.qty += delta;
         render(); 
 
+        // 標記這個品項需要更新
+        pendingUpdates.add(`${name}|${variant}`);
+
         const statusLabel = document.getElementById('syncStatus');
-        statusLabel.innerText = '○ 同步中...';
-        statusLabel.style.color = '#f1c40f';
+        statusLabel.innerText = '⏳ 稍後自動同步...';
+        statusLabel.style.color = '#f39c12';
+
+        // 防抖邏輯：取消之前的計時器，重新設定 1.5 秒後執行
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => {
+            forceSync();
+        }, 1500); 
+    }
+
+    async function forceSync() {
+        if (pendingUpdates.size === 0) {
+            document.getElementById('syncStatus').innerText = '● 已是最新狀態';
+            return;
+        }
+
+        const statusLabel = document.getElementById('syncStatus');
+        statusLabel.innerText = '☁️ 正在同步至雲端...';
+        statusLabel.style.color = '#3498db';
+
+        // 將所有變動逐一發送到 GAS
+        const updates = Array.from(pendingUpdates);
+        pendingUpdates.clear(); // 先清空，避免重複發送
 
         try {
-            await fetch(API_URL, {
-                method: 'POST',
-                mode: 'no-cors', 
-                cache: 'no-cache',
-                body: JSON.stringify({ name, variant, newQty: item.qty })
-            });
-            setTimeout(() => {
-                statusLabel.innerText = '● 同步完成';
-                statusLabel.style.color = '#2ecc71';
-            }, 800);
+            for (let key of updates) {
+                const [name, variant] = key.split('|');
+                const item = inventory.find(i => i.name === name && i.variant === variant);
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    body: JSON.stringify({ name, variant, newQty: item.qty })
+                });
+            }
+            statusLabel.innerText = '✅ 同步完成';
+            statusLabel.style.color = '#2ecc71';
         } catch (e) {
             statusLabel.innerText = '❌ 同步出錯';
             statusLabel.style.color = '#e74c3c';
