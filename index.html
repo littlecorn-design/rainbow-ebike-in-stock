@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rainbow 電車點貨系統</title>
+    <title>Rainbow 電車點貨系統 (定時同步版)</title>
     <style>
         :root { --primary: #3498db; --bg: #f4f7f6; --note-yellow: #fff9c4; --success: #2ecc71; --danger: #e74c3c; }
         * { touch-action: manipulation; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
@@ -18,8 +18,12 @@
         .cat-btn.active { background: var(--primary); color: white; font-weight: bold; }
 
         .sync-area { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; }
-        #syncStatus { font-size: 11px; color: #888; }
-        .manual-sync-btn { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; color: #666; }
+        #syncStatus { font-size: 11px; color: #888; display: flex; align-items: center; gap: 5px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; display: inline-block; }
+        .dot.active { background: #f39c12; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        .manual-sync-btn { background: #34495e; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; cursor: pointer; color: white; }
 
         .product-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .product-title { font-weight: bold; font-size: 1.1em; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; color: #2c3e50; }
@@ -45,8 +49,8 @@
         <input type="text" id="searchBar" placeholder="🔍 搜尋品項..." oninput="render()">
         <div class="category-filter" id="catFilter"></div>
         <div class="sync-area">
-            <span id="syncStatus">● 準備就緒</span>
-            <button class="manual-sync-btn" onclick="forceSync()">🔄 手動同步</button>
+            <div id="syncStatus"><span id="syncDot" class="dot"></span> <span id="syncText">已跟雲端同步</span></div>
+            <button class="manual-sync-btn" onclick="forceSync()">立即存檔</button>
         </div>
     </div>
 
@@ -71,35 +75,34 @@
 
 <script>
     const API_URL = 'https://script.google.com/macros/s/AKfycbwLS99NQQvMAzktwolE1Ks376xxpG_FlnbZXzlRt8NpGjSk9Cjn9TQ2OKy3qD3nBhg/exec'; 
+    const SYNC_INTERVAL = 60 * 1000; // 設定同步間隔：60秒 (1分鐘)
 
     let inventory = [];
     let categories = ['全部'];
     let currentCat = '全部';
     let notes = JSON.parse(localStorage.getItem('rainbowNotes')) || [];
-    let syncTimer = null; // 用於存放定時器
-    let pendingUpdates = new Set(); // 紀錄哪些品項被改動過
+    let pendingUpdates = new Set(); 
 
     async function loadData() {
-        document.getElementById('syncStatus').innerText = '● 正在連線雲端...';
         try {
             const res = await fetch(API_URL);
             const data = await res.json();
             const catOrder = ['全部'];
-            
             inventory = data.slice(1).map(row => {
                 const cat = row[0] || '未分類';
                 if (!catOrder.includes(cat)) catOrder.push(cat);
                 return { cat, name: row[1], variant: row[2], qty: parseInt(row[3]) || 0 };
             });
-
             categories = catOrder;
             document.getElementById('status').style.display = 'none';
-            document.getElementById('syncStatus').innerText = '● 雲端已同步';
             renderCats();
             render();
             renderNotes();
+            
+            // 啟動定時器：每 60 秒執行一次同步
+            setInterval(forceSync, SYNC_INTERVAL);
         } catch (e) {
-            document.getElementById('status').innerHTML = '讀取失敗<br><small>請確認網路連線</small>';
+            document.getElementById('status').innerHTML = '讀取失敗，請重新整理';
         }
     }
 
@@ -110,35 +113,30 @@
         item.qty += delta;
         render(); 
 
-        // 標記這個品項需要更新
+        // 標記需要更新
         pendingUpdates.add(`${name}|${variant}`);
 
-        const statusLabel = document.getElementById('syncStatus');
-        statusLabel.innerText = '⏳ 稍後自動同步...';
-        statusLabel.style.color = '#f39c12';
-
-        // 防抖邏輯：取消之前的計時器，重新設定 1.5 秒後執行
-        clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => {
-            forceSync();
-        }, 1500); 
+        // 介面提示
+        const dot = document.getElementById('syncDot');
+        const text = document.getElementById('syncText');
+        dot.className = 'dot active';
+        text.innerText = '修改儲存中 (1分鐘內自動存檔)';
+        text.style.color = '#f39c12';
     }
 
     async function forceSync() {
-        if (pendingUpdates.size === 0) {
-            document.getElementById('syncStatus').innerText = '● 已是最新狀態';
-            return;
-        }
+        if (pendingUpdates.size === 0) return;
 
-        const statusLabel = document.getElementById('syncStatus');
-        statusLabel.innerText = '☁️ 正在同步至雲端...';
-        statusLabel.style.color = '#3498db';
+        const dot = document.getElementById('syncDot');
+        const text = document.getElementById('syncText');
+        text.innerText = '☁️ 正在存檔至雲端...';
+        text.style.color = '#3498db';
 
-        // 將所有變動逐一發送到 GAS
         const updates = Array.from(pendingUpdates);
-        pendingUpdates.clear(); // 先清空，避免重複發送
+        pendingUpdates.clear(); 
 
         try {
+            // 批次執行，但 GAS 還是要逐一呼叫
             for (let key of updates) {
                 const [name, variant] = key.split('|');
                 const item = inventory.find(i => i.name === name && i.variant === variant);
@@ -148,11 +146,18 @@
                     body: JSON.stringify({ name, variant, newQty: item.qty })
                 });
             }
-            statusLabel.innerText = '✅ 同步完成';
-            statusLabel.style.color = '#2ecc71';
+            dot.className = 'dot';
+            text.innerText = '✅ 所有變動已同步';
+            text.style.color = '#2ecc71';
+            setTimeout(() => {
+                if(pendingUpdates.size === 0) {
+                    text.innerText = '已跟雲端同步';
+                    text.style.color = '#888';
+                }
+            }, 3000);
         } catch (e) {
-            statusLabel.innerText = '❌ 同步出錯';
-            statusLabel.style.color = '#e74c3c';
+            text.innerText = '❌ 存檔失敗，稍後重試';
+            text.style.color = '#e74c3c';
         }
     }
 
@@ -160,7 +165,6 @@
         const list = document.getElementById('productList');
         const search = document.getElementById('searchBar').value.toLowerCase();
         list.innerHTML = '';
-
         inventory.filter(i => (currentCat === '全部' || i.cat === currentCat) && i.name.toLowerCase().includes(search)).forEach(i => {
             const card = document.createElement('div');
             card.className = 'product-card';
