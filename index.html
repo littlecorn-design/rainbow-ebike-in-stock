@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rainbow 電車點貨系統 (定時同步版)</title>
+    <title>Rainbow 電車點貨 (歸類同步版)</title>
     <style>
         :root { --primary: #3498db; --bg: #f4f7f6; --note-yellow: #fff9c4; --success: #2ecc71; --danger: #e74c3c; }
         * { touch-action: manipulation; -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
@@ -19,42 +19,44 @@
 
         .sync-area { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; }
         #syncStatus { font-size: 11px; color: #888; display: flex; align-items: center; gap: 5px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; display: inline-block; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
         .dot.active { background: #f39c12; animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        .manual-sync-btn { background: #34495e; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; cursor: pointer; color: white; }
-
         .product-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .product-title { font-weight: bold; font-size: 1.1em; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; color: #2c3e50; }
-        .variant-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
+        
+        /* 子項目列 */
+        .variant-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f9f9f9; }
+        .variant-row:last-child { border-bottom: none; }
+        .variant-name { font-size: 15px; color: #34495e; flex: 1; }
         
         .controls { display: flex; align-items: center; gap: 8px; }
-        .btn-op { width: 48px; height: 48px; border-radius: 12px; border: none; font-size: 24px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-op { width: 46px; height: 46px; border-radius: 10px; border: none; font-size: 22px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .btn-minus { background: var(--danger); }
         .btn-plus { background: var(--success); }
         
-        .qty-input { width: 60px; height: 44px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #eee; border-radius: 8px; background: #fdfdfd; pointer-events: none; }
+        .qty-input { width: 55px; height: 42px; text-align: center; font-size: 18px; font-weight: bold; border: 1px solid #eee; border-radius: 8px; background: #fdfdfd; pointer-events: none; }
 
         .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: #f1c40f; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 99; border: none; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
         .modal-content { position: absolute; bottom: 0; left: 0; right: 0; background: var(--note-yellow); border-radius: 24px 24px 0 0; padding: 20px; max-height: 80vh; display: flex; flex-direction: column; }
         .note-list { flex: 1; overflow-y: auto; background: rgba(255,255,255,0.4); border-radius: 12px; padding: 10px; margin-bottom: 10px; min-height: 200px; border: 1px solid #e6db55; }
-        .note-item { border-bottom: 1px dashed #e6db55; padding: 10px 0; color: #5d4037; }
+        .note-item { border-bottom: 1px dashed #e6db55; padding: 10px 0; }
     </style>
 </head>
 <body>
 
     <div class="header-section">
-        <input type="text" id="searchBar" placeholder="🔍 搜尋品項..." oninput="render()">
+        <input type="text" id="searchBar" placeholder="🔍 搜尋產品名稱..." oninput="render()">
         <div class="category-filter" id="catFilter"></div>
         <div class="sync-area">
-            <div id="syncStatus"><span id="syncDot" class="dot"></span> <span id="syncText">已跟雲端同步</span></div>
-            <button class="manual-sync-btn" onclick="forceSync()">立即存檔</button>
+            <div id="syncStatus"><span id="syncDot" class="dot"></span> <span id="syncText">資料與雲端一致</span></div>
+            <button style="background:#34495e; color:white; border:none; border-radius:6px; padding:5px 10px; font-size:11px;" onclick="forceSync()">立即存檔</button>
         </div>
     </div>
 
-    <div id="status" style="text-align:center; color: #888; padding: 50px 0;">讀取雲端庫存中...</div>
+    <div id="status" style="text-align:center; color: #888; padding: 50px 0;">讀取 Google 表格中...</div>
     <div id="productList" style="padding-bottom: 100px;"></div>
 
     <button class="fab" onclick="toggleModal()">📝</button>
@@ -62,22 +64,21 @@
     <div class="modal-overlay" id="modalOverlay" onclick="toggleModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <span style="font-weight:bold; font-size: 1.2em;">📋 手動記事本</span>
+                <span style="font-weight:bold;">📋 手動記事本</span>
                 <button onclick="toggleModal()" style="border:none; background:#95a5a6; color:white; padding:8px 20px; border-radius:10px;">關閉</button>
             </div>
             <div class="note-list" id="noteList"></div>
             <div style="display:flex; gap:10px;">
-                <input type="text" id="customNote" style="flex:1; padding:15px; border-radius:10px; border:1px solid #d4c84d; font-size:16px;" placeholder="輸入記事...">
-                <button onclick="addNote()" style="background:#34495e; color:white; border:none; padding:0 20px; border-radius:10px; font-weight:bold;">送出</button>
+                <input type="text" id="customNote" style="flex:1; padding:15px; border-radius:10px; border:1px solid #d4c84d;" placeholder="輸入記事...">
+                <button onclick="addNote()" style="background:#34495e; color:white; border:none; padding:0 20px; border-radius:10px;">送出</button>
             </div>
         </div>
     </div>
 
 <script>
     const API_URL = 'https://script.google.com/macros/s/AKfycbwLS99NQQvMAzktwolE1Ks376xxpG_FlnbZXzlRt8NpGjSk9Cjn9TQ2OKy3qD3nBhg/exec'; 
-    const SYNC_INTERVAL = 60 * 1000; // 設定同步間隔：60秒 (1分鐘)
 
-    let inventory = [];
+    let groupedInventory = []; // 存儲歸類後的資料
     let categories = ['全部'];
     let currentCat = '全部';
     let notes = JSON.parse(localStorage.getItem('rainbowNotes')) || [];
@@ -87,77 +88,82 @@
         try {
             const res = await fetch(API_URL);
             const data = await res.json();
+            const tempMap = {}; // 用於歸類的 Map
             const catOrder = ['全部'];
-            inventory = data.slice(1).map(row => {
+
+            // 從第二列開始讀取
+            data.slice(1).forEach(row => {
                 const cat = row[0] || '未分類';
+                const name = row[1];
+                const variant = row[2] || '預設';
+                const qty = parseInt(row[3]) || 0;
+
+                if (!name) return;
                 if (!catOrder.includes(cat)) catOrder.push(cat);
-                return { cat, name: row[1], variant: row[2], qty: parseInt(row[3]) || 0 };
+
+                const groupKey = `${cat}_${name}`;
+                if (!tempMap[groupKey]) {
+                    tempMap[groupKey] = { cat, name, variants: [] };
+                }
+                tempMap[groupKey].variants.push({ variant, qty });
             });
+
+            groupedInventory = Object.values(tempMap);
             categories = catOrder;
             document.getElementById('status').style.display = 'none';
             renderCats();
             render();
             renderNotes();
             
-            // 啟動定時器：每 60 秒執行一次同步
-            setInterval(forceSync, SYNC_INTERVAL);
+            setInterval(forceSync, 60000); // 1分鐘定時同步
         } catch (e) {
-            document.getElementById('status').innerHTML = '讀取失敗，請重新整理';
+            document.getElementById('status').innerText = '讀取失敗';
         }
     }
 
     function updateQty(name, variant, delta) {
-        const item = inventory.find(i => i.name === name && i.variant === variant);
-        if (!item) return;
-
-        item.qty += delta;
-        render(); 
-
-        // 標記需要更新
-        pendingUpdates.add(`${name}|${variant}`);
-
-        // 介面提示
-        const dot = document.getElementById('syncDot');
-        const text = document.getElementById('syncText');
-        dot.className = 'dot active';
-        text.innerText = '修改儲存中 (1分鐘內自動存檔)';
-        text.style.color = '#f39c12';
+        // 在 groupedInventory 中找到該項目
+        const product = groupedInventory.find(p => p.name === name);
+        if (product) {
+            const vItem = product.variants.find(v => v.variant === variant);
+            if (vItem) {
+                vItem.qty += delta;
+                render(); 
+                pendingUpdates.add(`${name}|${variant}`);
+                
+                const dot = document.getElementById('syncDot');
+                const text = document.getElementById('syncText');
+                dot.className = 'dot active';
+                text.innerText = '修改暫存中 (1分鐘內自動存檔)';
+                text.style.color = '#f39c12';
+            }
+        }
     }
 
     async function forceSync() {
         if (pendingUpdates.size === 0) return;
-
-        const dot = document.getElementById('syncDot');
         const text = document.getElementById('syncText');
-        text.innerText = '☁️ 正在存檔至雲端...';
-        text.style.color = '#3498db';
-
+        text.innerText = '☁️ 正在連線存檔...';
+        
         const updates = Array.from(pendingUpdates);
         pendingUpdates.clear(); 
 
         try {
-            // 批次執行，但 GAS 還是要逐一呼叫
             for (let key of updates) {
                 const [name, variant] = key.split('|');
-                const item = inventory.find(i => i.name === name && i.variant === variant);
+                const product = groupedInventory.find(p => p.name === name);
+                const vItem = product.variants.find(v => v.variant === variant);
                 await fetch(API_URL, {
                     method: 'POST',
                     mode: 'no-cors', 
-                    body: JSON.stringify({ name, variant, newQty: item.qty })
+                    body: JSON.stringify({ name, variant, newQty: vItem.qty })
                 });
             }
-            dot.className = 'dot';
-            text.innerText = '✅ 所有變動已同步';
+            document.getElementById('syncDot').className = 'dot';
+            text.innerText = '✅ 雲端存檔成功';
             text.style.color = '#2ecc71';
-            setTimeout(() => {
-                if(pendingUpdates.size === 0) {
-                    text.innerText = '已跟雲端同步';
-                    text.style.color = '#888';
-                }
-            }, 3000);
         } catch (e) {
-            text.innerText = '❌ 存檔失敗，稍後重試';
-            text.style.color = '#e74c3c';
+            text.innerText = '❌ 存檔出錯';
         }
     }
 
@@ -165,20 +171,26 @@
         const list = document.getElementById('productList');
         const search = document.getElementById('searchBar').value.toLowerCase();
         list.innerHTML = '';
-        inventory.filter(i => (currentCat === '全部' || i.cat === currentCat) && i.name.toLowerCase().includes(search)).forEach(i => {
+
+        groupedInventory.filter(p => (currentCat === '全部' || p.cat === currentCat) && p.name.toLowerCase().includes(search)).forEach(p => {
             const card = document.createElement('div');
             card.className = 'product-card';
-            card.innerHTML = `
-                <div style="font-size:11px; color:var(--primary); font-weight:bold;">${i.cat}</div>
-                <div class="product-title">${i.name}</div>
+            
+            let variantsHtml = p.variants.map(v => `
                 <div class="variant-row">
-                    <span>${i.variant}</span>
+                    <div class="variant-name">${v.variant}</div>
                     <div class="controls">
-                        <button class="btn-op btn-minus" onclick="updateQty('${i.name.replace(/'/g, "\\'")}','${i.variant.replace(/'/g, "\\'")}', -1)">−</button>
-                        <input type="number" class="qty-input" value="${i.qty}">
-                        <button class="btn-op btn-plus" onclick="updateQty('${i.name.replace(/'/g, "\\'")}','${i.variant.replace(/'/g, "\\'")}', 1)">＋</button>
+                        <button class="btn-op btn-minus" onclick="updateQty('${p.name.replace(/'/g, "\\'")}','${v.variant.replace(/'/g, "\\")}', -1)">−</button>
+                        <input type="number" class="qty-input" value="${v.qty}">
+                        <button class="btn-op btn-plus" onclick="updateQty('${p.name.replace(/'/g, "\\'")}','${v.variant.replace(/'/g, "\\")}', 1)">＋</button>
                     </div>
                 </div>
+            `).join('');
+
+            card.innerHTML = `
+                <div style="font-size:11px; color:var(--primary); font-weight:bold;">${p.cat}</div>
+                <div class="product-title">${p.name}</div>
+                ${variantsHtml}
             `;
             list.appendChild(card);
         });
@@ -193,8 +205,7 @@
     function addNote() {
         const input = document.getElementById('customNote');
         if (!input.value.trim()) return;
-        const time = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-        notes.unshift(`${time} | ${input.value}`);
+        notes.unshift(`${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} | ${input.value}`);
         input.value = '';
         localStorage.setItem('rainbowNotes', JSON.stringify(notes));
         renderNotes();
